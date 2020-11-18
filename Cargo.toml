@@ -1,5 +1,5 @@
 [package]
-name = "tui-handlegraph"
+name = "handlegraph-cli"
 version = "0.1.0"
 authors = ["christian <christian@chfi.se>"]
 edition = "2018"

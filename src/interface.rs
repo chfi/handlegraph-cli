@@ -36,20 +36,14 @@ impl LoadGFAView {
         }
     }
 
-    // pub(crate) async fn render_loop<W: std::io::Write>(&mut self, write: &mut W) -> mpsc::Sender<LoadGFAMsg> {
     pub async fn render_loop<W: std::io::Write>(
         &mut self,
         write: &mut W,
         mut recv: mpsc::Receiver<LoadGFAMsg>,
     ) {
-        // use tokio::time;
-
-        // let mut interval = time::interval(time::Duration::from_secs(1));
         let mut instant = std::time::Instant::now();
 
         'render: loop {
-            // let now = std::time::Instant::now();
-            // interval.tick().await;
             while let Ok(msg) = recv.try_recv() {
                 if msg == LoadGFAMsg::Done {
                     break 'render;

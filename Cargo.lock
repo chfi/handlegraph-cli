@@ -307,6 +307,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "handlegraph-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bstr",
+ "crossterm",
+ "futures",
+ "futures-util",
+ "gfa",
+ "handlegraph",
+ "rayon",
+ "succinct",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -735,23 +752,6 @@ dependencies = [
  "pin-project-lite",
  "slab",
  "tokio",
-]
-
-[[package]]
-name = "tui-handlegraph"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bstr",
- "crossterm",
- "futures",
- "futures-util",
- "gfa",
- "handlegraph",
- "rayon",
- "succinct",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]

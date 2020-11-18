@@ -1,4 +1,4 @@
-use tui_handlegraph::{
+use handlegraph_cli::{
     interface::{LoadGFAMsg, LoadGFAView},
     io::load_gfa,
 };
@@ -16,17 +16,19 @@ use handlegraph::{
     handle::{Edge, Handle, NodeId},
     handlegraph::HandleGraphRef,
     mutablehandlegraph::*,
+    pathgraph::PathHandleGraph,
     pathhandlegraph::*,
-    // pathgraph::PathHandleGraph,
 };
 
 use handlegraph::packedgraph::{
     PackedGraph, PackedGraphPaths, PackedPath, StepUpdate,
 };
 
+use handlegraph::hashgraph::HashGraph;
+
 use std::collections::HashMap;
 
-fn alt_main() {
+fn _main() {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
@@ -40,6 +42,7 @@ fn alt_main() {
 
     println!("parsing GFA");
     let mut graph: PackedGraph = Default::default();
+    // let mut graph: HashGraph = Default::default();
 
     println!("Adding nodes");
     for segment in gfa.segments.iter() {
@@ -55,7 +58,17 @@ fn alt_main() {
         graph.create_edge(Edge(left, right));
     }
 
-    // count = 0;
+    /*
+    for path in gfa.paths.iter() {
+        let name = &path.path_name;
+        let path_id = graph.create_path_handle(name, false);
+        for (seg, orient) in path.iter() {
+            let handle = Handle::new(seg, orient);
+            graph.append_step(&path_id, handle);
+        }
+    }
+    */
+
     println!("Adding paths");
     let path_index_ids = gfa
         .paths
@@ -78,7 +91,7 @@ fn alt_main() {
             .collect()
     });
 
-    println!("final space: {}", graph.total_bytes());
+    // println!("final space: {}", graph.total_bytes());
 }
 
 #[tokio::main]
@@ -91,7 +104,6 @@ async fn main() {
         println!("provide a file name");
         exit(1);
     };
-    // let file_name = "lil.gfa";
     let (send, recv) = mpsc::channel::<LoadGFAMsg>(10000);
     let mut view = LoadGFAView::new(&file_name);
 
@@ -105,6 +117,4 @@ async fn main() {
     if let Ok(graph) = graph {
         println!("\n\ngraph loaded");
     }
-
-    // sleep(std::time::Duration::from_secs(5)).await;
 }
