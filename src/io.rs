@@ -10,6 +10,8 @@ use handlegraph::packedgraph::{
     PackedGraph, PackedGraphPaths, PackedPath, StepUpdate,
 };
 
+use succinct::SpaceUsage;
+
 use gfa::{
     gfa as gfa_types,
     // gfa::{Line, Link, Orientation, Path, Segment, GFA},
@@ -21,16 +23,19 @@ use gfa::{
 use anyhow::{bail, Result};
 use bstr::{BString, ByteVec};
 
-pub async fn load_gfa(gfa_path: &std::path::Path) -> Result<PackedGraph> {
-    /*
-    use {
-        bstr::io::BufReadExt,
-        std::{fs::File, io::BufReader},
-    };
-    */
+use crate::interface::{LoadGFAMsg, LoadGFAView};
+
+use tokio::sync::mpsc;
+
+pub async fn load_gfa(
+    // gfa_path: &std::path::Path,
+    gfa_path: &str,
+    send: mpsc::Sender<LoadGFAMsg>,
+) -> Result<PackedGraph> {
     use tokio::{
         fs::File,
         io::{self, AsyncBufRead, AsyncBufReadExt, AsyncRead, BufReader},
+        time::sleep,
     };
 
     let gfa_parser: GFAParser<usize, ()> = GFAParser::new();
@@ -39,14 +44,14 @@ pub async fn load_gfa(gfa_path: &std::path::Path) -> Result<PackedGraph> {
     let mut reader = BufReader::new(file);
     let mut buf = Vec::with_capacity(1024);
 
-    // let lines = BufReader::new(file).byte_lines();
-
     let mut graph = PackedGraph::default();
 
     loop {
+        // sleep(std::time::Duration::from_secs(1)).await;
         buf.clear();
         let res = reader.read_until(0xA, &mut buf).await?;
         if res == 0 {
+            send.send(LoadGFAMsg::Done).await?;
             break;
         }
 
@@ -55,6 +60,7 @@ pub async fn load_gfa(gfa_path: &std::path::Path) -> Result<PackedGraph> {
                 Line::Header(_) => (),
                 Line::Segment(seg) => {
                     graph.create_handle(&seg.sequence, seg.name as u64);
+                    send.send(LoadGFAMsg::Node).await?;
                 }
                 Line::Link(link) => {
                     let from =
@@ -62,6 +68,7 @@ pub async fn load_gfa(gfa_path: &std::path::Path) -> Result<PackedGraph> {
                     let to =
                         Handle::new(link.to_segment as u64, link.to_orient);
                     graph.create_edge(Edge(from, to));
+                    send.send(LoadGFAMsg::Edge).await?;
                 }
                 Line::Containment(_) => (),
                 Line::Path(path) => {
@@ -74,11 +81,15 @@ pub async fn load_gfa(gfa_path: &std::path::Path) -> Result<PackedGraph> {
                             })
                             .collect()
                     });
+                    send.send(LoadGFAMsg::Path).await?;
                 }
             },
             // Err(err) if err.can_safely_continue(&self.tolerance) => (),
             Err(err) => bail!("Cannot parse GFA file: {:?}", err),
         }
+
+        let bytes = graph.total_bytes();
+        send.send(LoadGFAMsg::Bytes(bytes)).await?;
     }
 
     /*
