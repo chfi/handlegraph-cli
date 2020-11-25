@@ -285,7 +285,9 @@ dependencies = [
 
 [[package]]
 name = "gfa"
-version = "0.8.0"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e0906d45192d4a1f0f0bf1b3da50807966c06bb3590ca7006aa56499ee66e3b"
 dependencies = [
  "bstr",
  "bytemuck",
@@ -297,9 +299,10 @@ dependencies = [
 
 [[package]]
 name = "handlegraph"
-version = "0.5.0"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96095093463aaad522d51038074705c5a2e590fe6b849809ce55b89d8c7fe4b0"
 dependencies = [
- "bstr",
  "fnv",
  "gfa",
  "rayon",

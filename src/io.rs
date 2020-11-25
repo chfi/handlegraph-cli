@@ -7,7 +7,8 @@ use handlegraph::{
 };
 
 use handlegraph::packedgraph::{
-    PackedGraph, PackedGraphPaths, PackedPath, StepUpdate,
+    paths::{PackedGraphPaths, PackedPath, StepUpdate},
+    PackedGraph,
 };
 
 use succinct::SpaceUsage;
@@ -126,6 +127,11 @@ async fn read_paths(
     let mut reader = BufReader::new(file);
     let mut buf = Vec::with_capacity(1024);
 
+    use std::collections::HashMap;
+
+    let mut paths: HashMap<PathId, gfa_types::Path<usize, ()>> =
+        HashMap::default();
+
     loop {
         buf.clear();
         let res = reader.read_until(0xA, &mut buf).await?;
@@ -136,7 +142,11 @@ async fn read_paths(
         match gfa_parser.parse_gfa_line(&buf[0..res]) {
             Ok(parsed) => match parsed {
                 Line::Path(path) => {
-                    let path_id = graph.create_path(&path.path_name, false);
+                    send.send(LoadGFAMsg::Path).await?;
+                    let path_id =
+                        graph.create_path(&path.path_name, false).unwrap();
+                    // paths.insert(path_id, path);
+
                     graph.with_path_mut_ctx(path_id, |path_ref| {
                         path.iter()
                             .map(|(node, orient)| {
@@ -145,7 +155,6 @@ async fn read_paths(
                             })
                             .collect()
                     });
-                    send.send(LoadGFAMsg::Path).await?;
                 }
                 _ => (),
             },
@@ -155,6 +164,19 @@ async fn read_paths(
         let bytes = graph.total_bytes();
         send.send(LoadGFAMsg::Bytes(bytes)).await?;
     }
+
+    /*
+    graph.with_all_paths_mut_ctx_chn(|path_id, path_ref| {
+        let gfa_path = paths.get(&path_id).unwrap();
+        gfa_path
+            .iter()
+            .map(|(node, orient)| {
+                let handle = Handle::new(node as u64, orient);
+                path_ref.append_step(handle)
+            })
+            .collect()
+    });
+    */
 
     Ok(())
 }

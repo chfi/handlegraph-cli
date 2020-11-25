@@ -16,12 +16,13 @@ use handlegraph::{
     handle::{Edge, Handle, NodeId},
     handlegraph::HandleGraphRef,
     mutablehandlegraph::*,
-    pathgraph::PathHandleGraph,
+    // pathgraph::PathHandleGraph,
     pathhandlegraph::*,
 };
 
 use handlegraph::packedgraph::{
-    PackedGraph, PackedGraphPaths, PackedPath, StepUpdate,
+    paths::{PackedGraphPaths, PackedPath, StepUpdate},
+    PackedGraph,
 };
 
 use handlegraph::hashgraph::HashGraph;
@@ -74,9 +75,9 @@ fn _main() {
         .paths
         .iter()
         .enumerate()
-        .map(|(ix, path)| {
-            let path_id = graph.create_path(&path.path_name, false);
-            (path_id, ix)
+        .filter_map(|(ix, path)| {
+            let path_id = graph.create_path(&path.path_name, false)?;
+            Some((path_id, ix))
         })
         .collect::<HashMap<_, _>>();
 
@@ -95,7 +96,7 @@ fn _main() {
 }
 
 #[tokio::main]
-async fn main() {
+async fn __main() {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
