@@ -1,12 +1,15 @@
 use handlegraph_cli::{
     interface::{LoadGFAMsg, LoadGFAView},
     io::load_gfa,
+    mmap_gfa::{LineIndices, LineType, MmapGFA},
 };
 
 use tokio::{io, sync::mpsc, time::sleep};
 
 use std::env;
 use std::process::exit;
+
+use anyhow::Result;
 
 use succinct::SpaceUsage;
 
@@ -27,7 +30,51 @@ use handlegraph::packedgraph::{
 
 use handlegraph::hashgraph::HashGraph;
 
+use bstr::{BStr, ByteSlice, ByteVec};
+
 use std::collections::HashMap;
+
+fn main() -> Result<()> {
+    let args = env::args().collect::<Vec<_>>();
+    println!("{:?}", args);
+    let file_name = if let Some(name) = args.get(1) {
+        name
+    } else {
+        println!("provide a file name");
+        exit(1);
+    };
+
+    let mut mmap_gfa = MmapGFA::new(file_name)?;
+
+    let indices = mmap_gfa.build_index()?;
+
+    println!(" ~ Indices ~ ");
+    println!("Segments");
+    for &s in indices.segments.iter() {
+        let line = mmap_gfa.read_line_at(s)?;
+        let bstr_line = line.trim().as_bstr();
+        println!("    {:>4} - {}", s, bstr_line);
+    }
+    println!();
+
+    println!("Links");
+    for &s in indices.links.iter() {
+        let line = mmap_gfa.read_line_at(s)?;
+        let bstr_line = line.trim().as_bstr();
+        println!("    {:>4} - {}", s, bstr_line);
+    }
+    println!();
+
+    println!("Paths");
+    for &s in indices.paths.iter() {
+        let line = mmap_gfa.read_line_at(s)?;
+        let bstr_line = line.trim().as_bstr();
+        println!("    {:>4} - {}", s, bstr_line);
+    }
+    println!();
+
+    Ok(())
+}
 
 fn _main() {
     let args = env::args().collect::<Vec<_>>();
