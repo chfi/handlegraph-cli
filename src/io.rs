@@ -25,6 +25,7 @@ use anyhow::{bail, Result};
 use bstr::{BString, ByteVec};
 
 use crate::interface::{LoadGFAMsg, LoadGFAView};
+use crate::mmap_gfa::{LineIndices, LineType, MmapGFA};
 
 use tokio::sync::mpsc;
 
@@ -197,6 +198,73 @@ pub async fn load_gfa(
     read_paths(&mut file, &mut send, &mut graph).await?;
 
     send.send(LoadGFAMsg::Done).await?;
+
+    Ok(graph)
+}
+
+pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
+    let mut graph = PackedGraph::default();
+
+    let indices = mmap_gfa.build_index()?;
+
+    println!("adding nodes");
+    for (ix, &offset) in indices.segments.iter().enumerate() {
+        if ix % (indices.segments.len() / 100).max(1) == 0 {
+            println!("{:6} - {} bytes", ix, graph.total_bytes());
+        }
+        let _line = mmap_gfa.read_line_at(offset)?;
+        let segment = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Segment(segment) = segment {
+            graph.create_handle(&segment.sequence, segment.name as u64);
+        }
+    }
+    println!("space usage: {} bytes", graph.total_bytes());
+
+    println!("adding edges");
+    for &offset in indices.links.iter() {
+        let _line = mmap_gfa.read_line_at(offset)?;
+        let link = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Link(link) = link {
+            let from = Handle::new(link.from_segment as u64, link.from_orient);
+            let to = Handle::new(link.to_segment as u64, link.to_orient);
+            graph.create_edge(Edge(from, to));
+        }
+    }
+    println!("space usage: {} bytes", graph.total_bytes());
+
+    println!("adding paths");
+    for &offset in indices.paths.iter() {
+        let _line = mmap_gfa.read_line_at(offset)?;
+        let path = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Path(path) = path {
+            let path_id = graph.create_path(&path.path_name, false).unwrap();
+
+            graph.with_path_mut_ctx(path_id, |path_ref| {
+                path.iter()
+                    .map(|(node, orient)| {
+                        let handle = Handle::new(node as u64, orient);
+                        path_ref.append_step(handle)
+                    })
+                    .collect()
+            });
+        }
+    }
+    println!("space usage: {} bytes", graph.total_bytes());
+
+    /*
+    let mut path_ids = Vec::with_capacity(indices.paths.len());
+
+    for &offset in indices.paths.iter() {
+        let _line = mmap_gfa.read_line_at(offset)?;
+        if let Some(path_name) = mmap_gfa.current_line_name() {
+            let path_id = graph.create_path(path_name, false).unwrap();
+            path_ids.push((path_id, offset));
+        }
+    }
+    */
 
     Ok(graph)
 }

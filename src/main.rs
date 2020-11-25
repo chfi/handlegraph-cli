@@ -1,6 +1,6 @@
 use handlegraph_cli::{
     interface::{LoadGFAMsg, LoadGFAView},
-    io::load_gfa,
+    io::{load_gfa, packed_graph_from_mmap},
     mmap_gfa::{LineIndices, LineType, MmapGFA},
 };
 
@@ -17,9 +17,8 @@ use gfa::{gfa::GFA, parser::GFAParser};
 
 use handlegraph::{
     handle::{Edge, Handle, NodeId},
-    handlegraph::HandleGraphRef,
+    handlegraph::*,
     mutablehandlegraph::*,
-    // pathgraph::PathHandleGraph,
     pathhandlegraph::*,
 };
 
@@ -34,7 +33,7 @@ use bstr::{BStr, ByteSlice, ByteVec};
 
 use std::collections::HashMap;
 
-fn main() -> Result<()> {
+fn another_main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
@@ -51,9 +50,17 @@ fn main() -> Result<()> {
     println!(" ~ Indices ~ ");
     println!("Segments");
     for &s in indices.segments.iter() {
-        let line = mmap_gfa.read_line_at(s)?;
-        let bstr_line = line.trim().as_bstr();
-        println!("    {:>4} - {}", s, bstr_line);
+        let _line = mmap_gfa.read_line_at(s)?;
+        let segment = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Segment(segment) = segment {
+            println!(
+                "    {:>4} - Name: {}\tSequence: {}",
+                s,
+                segment.name,
+                segment.sequence.as_bstr()
+            );
+        }
     }
     println!();
 
@@ -76,6 +83,32 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+fn main() -> Result<()> {
+    let args = env::args().collect::<Vec<_>>();
+    println!("{:?}", args);
+    let file_name = if let Some(name) = args.get(1) {
+        name
+    } else {
+        println!("provide a file name");
+        exit(1);
+    };
+
+    let mut mmap_gfa = MmapGFA::new(file_name)?;
+
+    println!("parsing GFA");
+
+    let graph = packed_graph_from_mmap(&mut mmap_gfa)?;
+
+    let length = graph.total_length();
+    println!("length: {}", length);
+    println!("nodes:  {}", graph.node_count());
+    println!("edges:  {}", graph.edge_count());
+    println!("paths:  {}", graph.path_count());
+
+    Ok(())
+}
+
+/*
 fn _main() {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
@@ -166,3 +199,5 @@ async fn __main() {
         println!("\n\ngraph loaded");
     }
 }
+
+*/
