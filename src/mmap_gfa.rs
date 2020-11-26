@@ -51,7 +51,8 @@ pub enum LineType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LineIndices {
-    pub segments: Vec<usize>,
+    // pub segments: Vec<usize>,
+    pub segments: Vec<(usize, usize)>,
     pub links: Vec<usize>,
     pub paths: Vec<usize>,
 }
@@ -75,6 +76,14 @@ impl MmapGFA {
             last_buf_offset,
             parser,
         })
+    }
+
+    pub fn get_ref(&self) -> &[u8] {
+        self.cursor.get_ref().as_ref()
+    }
+
+    pub fn get_parser(&self) -> &GFAParser<usize, ()> {
+        &self.parser
     }
 
     pub fn next_line(&mut self) -> Result<&[u8]> {
@@ -104,16 +113,18 @@ impl MmapGFA {
         let mut paths = Vec::new();
 
         self.cursor.set_position(0);
+        let bytes_ref: &[u8] = self.cursor.get_ref().as_ref();
 
         let mut line_start = 0;
 
         loop {
             let line = self.next_line()?;
+            let length = line.len();
 
             if let Some(ref byte) = line.first() {
                 match byte {
                     b'S' => {
-                        segments.push(line_start);
+                        segments.push((line_start, length));
                     }
                     b'L' => {
                         links.push(line_start);
@@ -143,7 +154,6 @@ impl MmapGFA {
         Ok(res)
     }
 
-    // pub fn current_line(&self) -> Option<&[u8]> {
     pub fn current_line(&self) -> &[u8] {
         &self.line_buf[..self.current_line_len]
     }

@@ -1,6 +1,6 @@
 use handlegraph_cli::{
     interface::{LoadGFAMsg, LoadGFAView},
-    io::{load_gfa, packed_graph_from_mmap},
+    io::{load_gfa, packed_graph_diagnostics, packed_graph_from_mmap},
     mmap_gfa::{LineIndices, LineType, MmapGFA},
 };
 
@@ -19,6 +19,7 @@ use handlegraph::{
     handle::{Edge, Handle, NodeId},
     handlegraph::*,
     mutablehandlegraph::*,
+    packed::*,
     pathhandlegraph::*,
 };
 
@@ -33,7 +34,8 @@ use bstr::{BStr, ByteSlice, ByteVec};
 
 use std::collections::HashMap;
 
-fn another_main() -> Result<()> {
+// fn another_main() -> Result<()> {
+fn aeoumain() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
@@ -47,9 +49,31 @@ fn another_main() -> Result<()> {
 
     let indices = mmap_gfa.build_index()?;
 
+    let mmap_len = {
+        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
+        bytes.len()
+    };
+
     println!(" ~ Indices ~ ");
-    println!("Segments");
-    for &s in indices.segments.iter() {
+    println!("Segments - {}", mmap_len);
+    println!(
+        "  {:>8}  {:>8}  {:>8}  {:>8}  {:>8}",
+        "Offset", "off+len", "Length", "Read Len", "Trimmed"
+    );
+    for &(offset, length) in indices.segments.iter() {
+        let line = mmap_gfa.read_line_at(offset)?;
+        let len = line.len();
+        let bstr_line = line.trim().as_bstr();
+
+        println!(
+            "  {:>8}  {:>8}  {:>8}  {:>8}  {:>8}",
+            offset,
+            offset + length,
+            length,
+            len,
+            bstr_line.len()
+        );
+        /*
         let _line = mmap_gfa.read_line_at(s)?;
         let segment = mmap_gfa.parse_current_line()?;
 
@@ -61,7 +85,24 @@ fn another_main() -> Result<()> {
                 segment.sequence.as_bstr()
             );
         }
+        */
     }
+
+    let mmap_len_1 = {
+        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
+        bytes.len()
+    };
+
+    // let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
+    println!("mmap_len: {}", mmap_len);
+    println!("mmap_len_1: {}", mmap_len_1);
+
+    let mmap_len_2 = {
+        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
+        bytes.len()
+    };
+
+    /*
     println!();
 
     println!("Links");
@@ -79,6 +120,7 @@ fn another_main() -> Result<()> {
         println!("    {:>4} - {}", s, bstr_line);
     }
     println!();
+    */
 
     Ok(())
 }
@@ -109,7 +151,7 @@ fn main() -> Result<()> {
 }
 
 /*
-fn _main() {
+fn old_main() {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {

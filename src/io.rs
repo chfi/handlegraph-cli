@@ -24,6 +24,8 @@ use gfa::{
 use anyhow::{bail, Result};
 use bstr::{BString, ByteVec};
 
+use fxhash::FxHashMap;
+
 use crate::interface::{LoadGFAMsg, LoadGFAView};
 use crate::mmap_gfa::{LineIndices, LineType, MmapGFA};
 
@@ -202,8 +204,114 @@ pub async fn load_gfa(
     Ok(graph)
 }
 
-pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
+pub fn make_diagnostics_dir<P: AsRef<std::path::Path>>(
+    gfa_path: P,
+) -> std::io::Result<std::path::PathBuf> {
+    use std::fs::DirBuilder;
+    use std::path::PathBuf;
+
+    let mut dir_path = PathBuf::new();
+
+    let stem = gfa_path
+        .as_ref()
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap();
+
+    dir_path.push(stem);
+    DirBuilder::new().create(&dir_path)?;
+
+    Ok(dir_path)
+}
+
+pub fn node_diagnostics_path(
+    dir: &std::path::Path,
+    id: &str,
+) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+
+    let mut path: PathBuf = dir.to_owned();
+
+    let file_name = format!("nodes.{}.csv", id);
+    path.push(file_name);
+
+    Some(path)
+}
+
+pub fn edge_diagnostics_path(
+    dir: &std::path::Path,
+    id: &str,
+) -> Option<std::path::PathBuf> {
+    use std::path::PathBuf;
+
+    let mut path: PathBuf = dir.to_owned();
+
+    let file_name = format!("edges.{}.csv", id);
+    path.push(file_name);
+
+    Some(path)
+}
+
+pub fn packed_graph_diagnostics(
+    gfa_path: &str,
+    mmap_gfa: &mut MmapGFA,
+) -> Result<()> {
+    let dir = make_diagnostics_dir(gfa_path)?;
+
     let mut graph = PackedGraph::default();
+    let indices = mmap_gfa.build_index()?;
+
+    let diag_frequency = if indices.links.len() < 10 {
+        2
+    } else {
+        indices.links.len() / 10
+    };
+
+    for &offset in indices.segments.iter() {
+        let _line = mmap_gfa.read_line_at(offset.0)?;
+        let segment = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Segment(segment) = segment {
+            graph.create_handle(&segment.sequence, segment.name as u64);
+        }
+    }
+
+    for (i, &offset) in indices.links.iter().enumerate() {
+        let _line = mmap_gfa.read_line_at(offset)?;
+        let link = mmap_gfa.parse_current_line()?;
+
+        if let gfa::gfa::Line::Link(link) = link {
+            let from = Handle::new(link.from_segment as u64, link.from_orient);
+            let to = Handle::new(link.to_segment as u64, link.to_orient);
+            graph.create_edge(Edge(from, to));
+        }
+
+        if i % diag_frequency == 0 {
+            let node_path =
+                node_diagnostics_path(&dir, &i.to_string()).unwrap();
+            let node_path = node_path.to_str().unwrap();
+            graph.nodes.save_diagnostics(node_path)?;
+
+            let edge_path =
+                edge_diagnostics_path(&dir, &i.to_string()).unwrap();
+            let edge_path = edge_path.to_str().unwrap();
+            graph.edges.save_diagnostics(edge_path)?;
+        }
+    }
+
+    let node_path = node_diagnostics_path(&dir, "final").unwrap();
+    let node_path = node_path.to_str().unwrap();
+    graph.nodes.save_diagnostics(node_path)?;
+
+    let edge_path = edge_diagnostics_path(&dir, "final").unwrap();
+    let edge_path = edge_path.to_str().unwrap();
+
+    graph.edges.save_diagnostics(edge_path)?;
+
+    println!("final space usage: {} bytes", graph.total_bytes());
+
+    Ok(())
+}
 
     let indices = mmap_gfa.build_index()?;
 
@@ -212,7 +320,7 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
         if ix % (indices.segments.len() / 100).max(1) == 0 {
             println!("{:6} - {} bytes", ix, graph.total_bytes());
         }
-        let _line = mmap_gfa.read_line_at(offset)?;
+        let _line = mmap_gfa.read_line_at(offset.0)?;
         let segment = mmap_gfa.parse_current_line()?;
 
         if let gfa::gfa::Line::Segment(segment) = segment {
@@ -234,6 +342,7 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
     }
     println!("space usage: {} bytes", graph.total_bytes());
 
+    /*
     println!("adding paths");
     for &offset in indices.paths.iter() {
         let _line = mmap_gfa.read_line_at(offset)?;
@@ -253,18 +362,44 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
         }
     }
     println!("space usage: {} bytes", graph.total_bytes());
+    */
 
-    /*
-    let mut path_ids = Vec::with_capacity(indices.paths.len());
+    let mut path_ids: FxHashMap<PathId, (usize, usize)> = FxHashMap::default();
+    path_ids.reserve(indices.paths.len());
 
+    println!("adding paths");
     for &offset in indices.paths.iter() {
-        let _line = mmap_gfa.read_line_at(offset)?;
+        let line = mmap_gfa.read_line_at(offset)?;
+        let length = line.len();
         if let Some(path_name) = mmap_gfa.current_line_name() {
             let path_id = graph.create_path(path_name, false).unwrap();
-            path_ids.push((path_id, offset));
+            path_ids.insert(path_id, (offset, length));
         }
     }
-    */
+
+    let mmap_gfa_bytes = mmap_gfa.get_ref();
+
+    let parser = mmap_gfa.get_parser();
+
+    graph.with_all_paths_mut_ctx(|path_id, path_ref| {
+        let &(offset, length) = path_ids.get(&path_id).unwrap();
+        let end = offset + length;
+        let line = &mmap_gfa_bytes[offset..end];
+        if let Some(Line::Path(path)) = parser.parse_gfa_line(line).ok() {
+            path.iter()
+                .map(|(node, orient)| {
+                    let handle = Handle::new(node as u64, orient);
+                    path_ref.append_step(handle)
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    });
+    println!(
+        "after paths    - space usage: {} bytes",
+        graph.total_bytes()
+    );
 
     Ok(graph)
 }
