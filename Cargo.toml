@@ -29,3 +29,6 @@ futures-util = "0.3"
 [dependencies.crossterm]
 version = "0.18"
 features = ["event-stream"]
+
+[profile.release]
+debug = true

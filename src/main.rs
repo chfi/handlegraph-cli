@@ -34,8 +34,8 @@ use bstr::{BStr, ByteSlice, ByteVec};
 
 use std::collections::HashMap;
 
-// fn another_main() -> Result<()> {
-fn aeoumain() -> Result<()> {
+// diagnostics main
+fn _main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
@@ -47,84 +47,20 @@ fn aeoumain() -> Result<()> {
 
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
-    let indices = mmap_gfa.build_index()?;
+    println!("parsing GFA");
 
-    let mmap_len = {
-        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
-        bytes.len()
-    };
+    packed_graph_diagnostics(file_name, &mut mmap_gfa)?;
 
-    println!(" ~ Indices ~ ");
-    println!("Segments - {}", mmap_len);
-    println!(
-        "  {:>8}  {:>8}  {:>8}  {:>8}  {:>8}",
-        "Offset", "off+len", "Length", "Read Len", "Trimmed"
-    );
-    for &(offset, length) in indices.segments.iter() {
-        let line = mmap_gfa.read_line_at(offset)?;
-        let len = line.len();
-        let bstr_line = line.trim().as_bstr();
-
-        println!(
-            "  {:>8}  {:>8}  {:>8}  {:>8}  {:>8}",
-            offset,
-            offset + length,
-            length,
-            len,
-            bstr_line.len()
-        );
-        /*
-        let _line = mmap_gfa.read_line_at(s)?;
-        let segment = mmap_gfa.parse_current_line()?;
-
-        if let gfa::gfa::Line::Segment(segment) = segment {
-            println!(
-                "    {:>4} - Name: {}\tSequence: {}",
-                s,
-                segment.name,
-                segment.sequence.as_bstr()
-            );
-        }
-        */
-    }
-
-    let mmap_len_1 = {
-        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
-        bytes.len()
-    };
-
-    // let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
-    println!("mmap_len: {}", mmap_len);
-    println!("mmap_len_1: {}", mmap_len_1);
-
-    let mmap_len_2 = {
-        let bytes: &[u8] = mmap_gfa.get_ref().as_ref();
-        bytes.len()
-    };
-
-    /*
-    println!();
-
-    println!("Links");
-    for &s in indices.links.iter() {
-        let line = mmap_gfa.read_line_at(s)?;
-        let bstr_line = line.trim().as_bstr();
-        println!("    {:>4} - {}", s, bstr_line);
-    }
-    println!();
-
-    println!("Paths");
-    for &s in indices.paths.iter() {
-        let line = mmap_gfa.read_line_at(s)?;
-        let bstr_line = line.trim().as_bstr();
-        println!("    {:>4} - {}", s, bstr_line);
-    }
-    println!();
-    */
+    // let length = graph.total_length();
+    // println!("length: {}", length);
+    // println!("nodes:  {}", graph.node_count());
+    // println!("edges:  {}", graph.edge_count());
+    // println!("paths:  {}", graph.path_count());
 
     Ok(())
 }
 
+// full load main
 fn main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
     println!("{:?}", args);

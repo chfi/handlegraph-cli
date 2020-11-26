@@ -313,21 +313,46 @@ pub fn packed_graph_diagnostics(
     Ok(())
 }
 
+pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
     let indices = mmap_gfa.build_index()?;
 
+    // let mut graph =
+    //     PackedGraph::with_expected_node_count(indices.segments.len());
+
+    let mut graph = PackedGraph::default();
+    println!("empty space usage: {} bytes", graph.total_bytes());
+
+    let mut min_id = std::usize::MAX;
+    let mut max_id = 0;
+
+    for &offset in indices.segments.iter() {
+        let _line = mmap_gfa.read_line_at(offset.0)?;
+        let name = mmap_gfa.current_line_name().unwrap();
+        let name_str = std::str::from_utf8(name).unwrap();
+        let id = name_str.parse::<usize>().unwrap();
+
+        min_id = id.min(min_id);
+        max_id = id.max(max_id);
+    }
+
+    let id_offset = if min_id == 0 { 1 } else { 0 };
+    // let id_offset = 1;
+
     println!("adding nodes");
-    for (ix, &offset) in indices.segments.iter().enumerate() {
-        if ix % (indices.segments.len() / 100).max(1) == 0 {
-            println!("{:6} - {} bytes", ix, graph.total_bytes());
-        }
+    for &offset in indices.segments.iter() {
         let _line = mmap_gfa.read_line_at(offset.0)?;
         let segment = mmap_gfa.parse_current_line()?;
 
         if let gfa::gfa::Line::Segment(segment) = segment {
-            graph.create_handle(&segment.sequence, segment.name as u64);
+            let id = (segment.name + id_offset) as u64;
+            graph.create_handle(&segment.sequence, id);
+            // graph.create_handle(&segment.sequence, segment.name as u64);
         }
     }
-    println!("space usage: {} bytes", graph.total_bytes());
+    println!(
+        "after segments - space usage: {} bytes",
+        graph.total_bytes()
+    );
 
     println!("adding edges");
     for &offset in indices.links.iter() {
@@ -335,12 +360,20 @@ pub fn packed_graph_diagnostics(
         let link = mmap_gfa.parse_current_line()?;
 
         if let gfa::gfa::Line::Link(link) = link {
-            let from = Handle::new(link.from_segment as u64, link.from_orient);
-            let to = Handle::new(link.to_segment as u64, link.to_orient);
+            let from_id = (link.from_segment + id_offset) as u64;
+            let to_id = (link.to_segment + id_offset) as u64;
+
+            let from = Handle::new(from_id, link.from_orient);
+            let to = Handle::new(to_id, link.to_orient);
+            // let from = Handle::new(link.from_segment as u64, link.from_orient);
+            // let to = Handle::new(link.to_segment as u64, link.to_orient);
             graph.create_edge(Edge(from, to));
         }
     }
-    println!("space usage: {} bytes", graph.total_bytes());
+    println!(
+        "after edges    - space usage: {} bytes",
+        graph.total_bytes()
+    );
 
     /*
     println!("adding paths");
@@ -388,7 +421,9 @@ pub fn packed_graph_diagnostics(
         if let Some(Line::Path(path)) = parser.parse_gfa_line(line).ok() {
             path.iter()
                 .map(|(node, orient)| {
-                    let handle = Handle::new(node as u64, orient);
+                    let node = node + id_offset;
+                    let handle = Handle::new(node, orient);
+                    // let handle = Handle::new(node as u64, orient);
                     path_ref.append_step(handle)
                 })
                 .collect()
