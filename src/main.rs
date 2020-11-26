@@ -7,6 +7,8 @@ use handlegraph_cli::{
 use tokio::{io, sync::mpsc, time::sleep};
 
 use std::env;
+use std::fs::File;
+use std::path::PathBuf;
 use std::process::exit;
 
 use anyhow::Result;
@@ -60,24 +62,56 @@ fn _main() -> Result<()> {
     Ok(())
 }
 
+fn file_size(path: &str) -> Result<String> {
+    let file = File::open(path)?;
+    let bytes = file.metadata()?.len();
+
+    if bytes > 1_000_000_000 {
+        let gb = bytes / 1_000_000_000;
+        Ok(format!("{} GB", gb))
+    } else if bytes > 1_000_000 {
+        let mb = bytes / 1_000_000;
+        Ok(format!("{} MB", mb))
+    } else if bytes > 1_000 {
+        let kb = bytes / 1_000;
+        Ok(format!("{} KB", kb))
+    } else {
+        Ok(format!("{} B", bytes))
+    }
+}
+
 // full load main
 fn main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
-    println!("{:?}", args);
     let file_name = if let Some(name) = args.get(1) {
         name
     } else {
-        println!("provide a file name");
+        eprintln!("provide a file name");
         exit(1);
     };
 
+    // let gfa_size = file_size(file_name)?;
+
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
-    println!("parsing GFA");
+    eprintln!("parsing GFA");
 
     let graph = packed_graph_from_mmap(&mut mmap_gfa)?;
 
+    // let file_stem = PathBuf::from(file_name);
+    // let gfa_name = file_stem.file_name().unwrap();
+    // let gfa_name = gfa_name.to_str().unwrap();
+
     let length = graph.total_length();
+    // let nodes = graph.node_count();
+    // let edges = graph.edge_count();
+    // let paths = graph.path_count();
+
+    // println!(
+    //     "{},{},{},{},{},{}",
+    //     gfa_name, gfa_size, length, nodes, edges, paths
+    // );
+
     println!("length: {}", length);
     println!("nodes:  {}", graph.node_count());
     println!("edges:  {}", graph.edge_count());
