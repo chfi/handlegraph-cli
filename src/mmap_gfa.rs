@@ -1,10 +1,4 @@
-use gfa::{
-    gfa as gfa_types,
-    // gfa::{Line, Link, Orientation, Path, Segment, GFA},
-    gfa::{Line, GFA},
-    optfields::OptFields,
-    parser::{GFAParser, GFAParserBuilder, GFAResult},
-};
+use gfa::{gfa::Line, parser::GFAParser};
 
 use anyhow::{bail, Result};
 
@@ -12,11 +6,8 @@ use memmap::Mmap;
 
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
 
-use bstr::io::*;
-
-use bstr::{ByteSlice, ByteVec};
+use bstr::ByteSlice;
 
 pub struct MmapGFA {
     pub cursor: std::io::Cursor<Mmap>,
@@ -113,7 +104,6 @@ impl MmapGFA {
         let mut paths = Vec::new();
 
         self.cursor.set_position(0);
-        let bytes_ref: &[u8] = self.cursor.get_ref().as_ref();
 
         let mut line_start = 0;
 
@@ -175,6 +165,7 @@ impl MmapGFA {
         Ok(gfa_line)
     }
 
+    #[allow(unused_variables)]
     pub fn seek_next(&mut self, line_type: LineType) {
         let line_sig = match line_type {
             LineType::Segment => b'S',

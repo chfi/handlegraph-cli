@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use crossterm::{
     cursor,
     event::{Event, EventStream, KeyCode},
