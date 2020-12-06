@@ -87,17 +87,23 @@ fn main() -> Result<()> {
     // there's no way to use it to update any state, other than the
     // paths themselves
     graph.with_all_paths_mut_ctx(|path_id, path_ref| {
-        println!("Path {}", path_id.0);
+        // we use Write to build the string before printing it all at
+        // once, so the output doesn't get jumbled due to concurrent
+        // printing
+        use std::fmt::Write;
+        // i like prettily structured output~~
+        let mut to_print = String::from("Path ");
+        write!(to_print, "{:<9}", format!("{}: ", path_id.0)).unwrap();
 
         for (ix, step) in path_ref.steps().enumerate() {
             if ix != 0 {
-                print!(", ");
+                write!(to_print, ", ").unwrap();
             }
             let id = step.handle().id();
             let orient = if step.handle().is_reverse() { "-" } else { "+" };
-            print!("{}{}", id, orient);
+            write!(to_print, "{}{}", id, orient).unwrap();
         }
-        println!();
+        println!("{}", to_print);
         // the way `with_all_paths_mut_ctx` currently works is that
         // the closure must produce a list of changes to apply to the
         // node occurrences... so this is hacky but w/e
