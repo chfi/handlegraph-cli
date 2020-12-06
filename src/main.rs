@@ -1,86 +1,36 @@
+#[allow(unused_imports)]
 use handlegraph_cli::{
     interface::{LoadGFAMsg, LoadGFAView},
-    io::{load_gfa, packed_graph_diagnostics, packed_graph_from_mmap},
+    io::packed_graph_from_mmap,
     mmap_gfa::{LineIndices, LineType, MmapGFA},
 };
 
-use tokio::{io, sync::mpsc, time::sleep};
-
 use std::env;
-use std::fs::File;
-use std::path::PathBuf;
 use std::process::exit;
 
 use anyhow::Result;
 
+#[allow(unused_imports)]
 use succinct::SpaceUsage;
 
-use gfa::{gfa::GFA, parser::GFAParser};
-
+#[allow(unused_imports)]
 use handlegraph::{
-    handle::{Edge, Handle, NodeId},
+    handle::{Direction, Edge, Handle, NodeId},
     handlegraph::*,
     mutablehandlegraph::*,
     packed::*,
     pathhandlegraph::*,
 };
 
-use handlegraph::packedgraph::{
-    paths::{PackedGraphPaths, PackedPath, StepUpdate},
-    PackedGraph,
-};
-
+#[allow(unused_imports)]
 use handlegraph::hashgraph::HashGraph;
+#[allow(unused_imports)]
+use handlegraph::packedgraph::PackedGraph;
 
-use bstr::{BStr, ByteSlice, ByteVec};
+use bstr::ByteSlice;
 
-use std::collections::HashMap;
+use rayon::prelude::*;
 
-// diagnostics main
-fn _main() -> Result<()> {
-    let args = env::args().collect::<Vec<_>>();
-    println!("{:?}", args);
-    let file_name = if let Some(name) = args.get(1) {
-        name
-    } else {
-        println!("provide a file name");
-        exit(1);
-    };
-
-    let mut mmap_gfa = MmapGFA::new(file_name)?;
-
-    println!("parsing GFA");
-
-    packed_graph_diagnostics(file_name, &mut mmap_gfa)?;
-
-    // let length = graph.total_length();
-    // println!("length: {}", length);
-    // println!("nodes:  {}", graph.node_count());
-    // println!("edges:  {}", graph.edge_count());
-    // println!("paths:  {}", graph.path_count());
-
-    Ok(())
-}
-
-fn file_size(path: &str) -> Result<String> {
-    let file = File::open(path)?;
-    let bytes = file.metadata()?.len();
-
-    if bytes > 1_000_000_000 {
-        let gb = bytes / 1_000_000_000;
-        Ok(format!("{} GB", gb))
-    } else if bytes > 1_000_000 {
-        let mb = bytes / 1_000_000;
-        Ok(format!("{} MB", mb))
-    } else if bytes > 1_000 {
-        let kb = bytes / 1_000;
-        Ok(format!("{} KB", kb))
-    } else {
-        Ok(format!("{} B", bytes))
-    }
-}
-
-// full load main
 fn main() -> Result<()> {
     let args = env::args().collect::<Vec<_>>();
     let file_name = if let Some(name) = args.get(1) {
@@ -90,126 +40,107 @@ fn main() -> Result<()> {
         exit(1);
     };
 
-    // let gfa_size = file_size(file_name)?;
-
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
     eprintln!("parsing GFA");
+    let mut graph = packed_graph_from_mmap(&mut mmap_gfa)?;
+    eprintln!("PackedGraph constructed");
 
-    let graph = packed_graph_from_mmap(&mut mmap_gfa)?;
+    // `handles()` comes from the `handlegraph::IntoHandles` trait,
+    // and iterates through the graph's handles in an
+    // implementation-specific order
+    println!("Handles");
+    for handle in graph.handles() {
+        let id = handle.id();
 
-    // let file_stem = PathBuf::from(file_name);
-    // let gfa_name = file_stem.file_name().unwrap();
-    // let gfa_name = gfa_name.to_str().unwrap();
+        // `sequence()` comes from the `handlegraph::IntoSequences`
+        // trait, and returns an iterator over the bases in the
+        // sequence as `u8`s. We collect it into a Vec<u8> (could also
+        // have used the `sequence_vec` method which does that for us)
+        let seq = graph.sequence(handle).collect::<Vec<_>>();
 
+        // The `.as_bstr()` method comes from `bstr`'s `ByteSlice`
+        // trait. It casts a `&[u8]` into a `BStr`; `BStr` is a
+        // newtype wrapper over `&[u8]` that implements `Display`,
+        // which lets us print byteslices without having to first
+        // transform them into a `&str`.
+        println!("{} - {}", id, seq.as_bstr());
+    }
+
+    // `neighbors()` comes from the `handlegraph::IntoNeighbors` trait
+    // and returns an iterator over the adjacent handles of a given
+    // handle, in the specified direction
+    println!("Neighbors");
+    for handle in graph.handles() {
+        println!("  Neighbors of {}", handle.id());
+        for left in graph.neighbors(handle, Direction::Left) {
+            println!("  {:^5} <- {:<5}", left.id(), handle.id());
+        }
+        for right in graph.neighbors(handle, Direction::Right) {
+            println!("        {:^5} -> {:<5}", handle.id(), right.id());
+        }
+    }
+
+    // Right now the only public parallel path interface is
+    // `with_all_paths_mut_ctx`, which is quite limited at the moment
+    // -- the closure it takes is an `Fn(..)`, not an `FnMut(..)`, so
+    // there's no way to use it to update any state, other than the
+    // paths themselves
+    graph.with_all_paths_mut_ctx(|path_id, path_ref| {
+        println!("Path {}", path_id.0);
+
+        for (ix, step) in path_ref.steps().enumerate() {
+            if ix != 0 {
+                print!(", ");
+            }
+            let id = step.handle().id();
+            let orient = if step.handle().is_reverse() { "-" } else { "+" };
+            print!("{}{}", id, orient);
+        }
+        println!();
+        // the way `with_all_paths_mut_ctx` currently works is that
+        // the closure must produce a list of changes to apply to the
+        // node occurrences... so this is hacky but w/e
+        Vec::new()
+    });
+
+    // The serial, immutable path iterator comes from the
+    // `pathhandlegraph::embedded_paths::IntoPathIds` trait, using the
+    // `path_ids` method
+
+    // We can use rayon's ParallelBridge to transform this serial
+    // iterator into a parallel one
+    let path_lengths = graph
+        .path_ids()
+        .par_bridge()
+        .filter_map(|path_id| {
+            // `get_path_ref` returns a shared (immutable) reference
+            // to a path, wrapped in an `Option<_>`. We use
+            // `filter_map` together with the `?` syntax to neatly
+            // unwrap it
+
+            // there's no way `get_path_ref` will return `None` in
+            // this context, but AFAIK this way makes it easier for
+            // the compiler to optimize, since using `filter_map` and
+            // `?` makes it impossible for a panic to occur, compared
+            // to if we would use `unwrap()`
+            let path_ref = graph.get_path_ref(path_id)?;
+            Some(path_ref.steps().count())
+        })
+        .collect::<Vec<_>>();
+
+    println!("graph stats");
     let length = graph.total_length();
-    // let nodes = graph.node_count();
-    // let edges = graph.edge_count();
-    // let paths = graph.path_count();
 
-    // println!(
-    //     "{},{},{},{},{},{}",
-    //     gfa_name, gfa_size, length, nodes, edges, paths
-    // );
+    println!("  length: {}", length);
+    println!("  nodes:  {}", graph.node_count());
+    println!("  edges:  {}", graph.edge_count());
+    println!("  paths:  {}", graph.path_count());
 
-    println!("length: {}", length);
-    println!("nodes:  {}", graph.node_count());
-    println!("edges:  {}", graph.edge_count());
-    println!("paths:  {}", graph.path_count());
+    println!(
+        "  total path steps: {}",
+        path_lengths.into_iter().sum::<usize>()
+    );
 
     Ok(())
 }
-
-/*
-fn old_main() {
-    let args = env::args().collect::<Vec<_>>();
-    println!("{:?}", args);
-    let file_name = if let Some(name) = args.get(1) {
-        name
-    } else {
-        println!("provide a file name");
-        exit(1);
-    };
-    let gfa_parser: GFAParser<usize, ()> = GFAParser::new();
-    let gfa = gfa_parser.parse_file(file_name).unwrap();
-
-    println!("parsing GFA");
-    let mut graph: PackedGraph = Default::default();
-    // let mut graph: HashGraph = Default::default();
-
-    println!("Adding nodes");
-    for segment in gfa.segments.iter() {
-        assert!(segment.name > 0);
-        let seq = &segment.sequence;
-        graph.create_handle(seq, segment.name);
-    }
-
-    println!("Adding edges");
-    for link in gfa.links.iter() {
-        let left = Handle::new(link.from_segment, link.from_orient);
-        let right = Handle::new(link.from_segment, link.from_orient);
-        graph.create_edge(Edge(left, right));
-    }
-
-    /*
-    for path in gfa.paths.iter() {
-        let name = &path.path_name;
-        let path_id = graph.create_path_handle(name, false);
-        for (seg, orient) in path.iter() {
-            let handle = Handle::new(seg, orient);
-            graph.append_step(&path_id, handle);
-        }
-    }
-    */
-
-    println!("Adding paths");
-    let path_index_ids = gfa
-        .paths
-        .iter()
-        .enumerate()
-        .filter_map(|(ix, path)| {
-            let path_id = graph.create_path(&path.path_name, false)?;
-            Some((path_id, ix))
-        })
-        .collect::<HashMap<_, _>>();
-
-    graph.with_all_paths_mut_ctx_chn(|path_id, path_ref| {
-        let ix = path_index_ids.get(&path_id).unwrap();
-        gfa.paths[*ix]
-            .iter()
-            .map(|(node, orient)| {
-                let handle = Handle::new(node as u64, orient);
-                path_ref.append_step(handle)
-            })
-            .collect()
-    });
-
-    // println!("final space: {}", graph.total_bytes());
-}
-
-#[tokio::main]
-async fn __main() {
-    let args = env::args().collect::<Vec<_>>();
-    println!("{:?}", args);
-    let file_name = if let Some(name) = args.get(1) {
-        name
-    } else {
-        println!("provide a file name");
-        exit(1);
-    };
-    let (send, recv) = mpsc::channel::<LoadGFAMsg>(10000);
-    let mut view = LoadGFAView::new(&file_name);
-
-    tokio::spawn(async move {
-        let mut sout = std::io::stdout();
-        view.render_loop(&mut sout, recv).await;
-    });
-
-    let graph = load_gfa(&file_name, send).await;
-
-    if let Ok(graph) = graph {
-        println!("\n\ngraph loaded");
-    }
-}
-
-*/
