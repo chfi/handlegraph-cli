@@ -309,9 +309,8 @@ dependencies = [
 [[package]]
 name = "handlegraph"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96095093463aaad522d51038074705c5a2e590fe6b849809ce55b89d8c7fe4b0"
 dependencies = [
+ "crossbeam-channel",
  "fnv",
  "gfa",
  "rayon",

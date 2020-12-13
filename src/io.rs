@@ -54,7 +54,6 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
     }
 
     let id_offset = if min_id == 0 { 1 } else { 0 };
-    // let id_offset = 1;
 
     eprintln!("adding nodes");
     for &offset in indices.segments.iter() {
@@ -64,7 +63,6 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
         if let gfa::gfa::Line::Segment(segment) = segment {
             let id = (segment.name + id_offset) as u64;
             graph.create_handle(&segment.sequence, id);
-            // graph.create_handle(&segment.sequence, segment.name as u64);
         }
     }
     eprintln!(
@@ -73,6 +71,26 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
     );
 
     eprintln!("adding edges");
+
+    let edges_iter = indices.links.iter().filter_map(|&offset| {
+        let _line = mmap_gfa.read_line_at(offset).ok()?;
+        let link = mmap_gfa.parse_current_line().ok()?;
+
+        if let gfa::gfa::Line::Link(link) = link {
+            let from_id = (link.from_segment + id_offset) as u64;
+            let to_id = (link.to_segment + id_offset) as u64;
+
+            let from = Handle::new(from_id, link.from_orient);
+            let to = Handle::new(to_id, link.to_orient);
+            Some(Edge(from, to))
+        } else {
+            None
+        }
+    });
+
+    graph.create_edges_iter(edges_iter);
+
+    /*
     for &offset in indices.links.iter() {
         let _line = mmap_gfa.read_line_at(offset)?;
         let link = mmap_gfa.parse_current_line()?;
@@ -83,11 +101,10 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
 
             let from = Handle::new(from_id, link.from_orient);
             let to = Handle::new(to_id, link.to_orient);
-            // let from = Handle::new(link.from_segment as u64, link.from_orient);
-            // let to = Handle::new(link.to_segment as u64, link.to_orient);
             graph.create_edge(Edge(from, to));
         }
     }
+    */
     eprintln!(
         "after edges    - space usage: {} bytes",
         graph.total_bytes()
@@ -106,11 +123,13 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
         }
     }
 
+    eprintln!("created path handles");
+
     let mmap_gfa_bytes = mmap_gfa.get_ref();
 
     let parser = mmap_gfa.get_parser();
 
-    graph.with_all_paths_mut_ctx(|path_id, path_ref| {
+    graph.with_all_paths_mut_ctx_chn(|path_id, path_ref| {
         let &(offset, length) = path_ids.get(&path_id).unwrap();
         let end = offset + length;
         let line = &mmap_gfa_bytes[offset..end];
