@@ -129,6 +129,22 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
 
     let parser = mmap_gfa.get_parser();
 
+    graph.with_all_paths_mut_ctx_chn_new(|path_id, sender, path_ref| {
+        let &(offset, length) = path_ids.get(&path_id).unwrap();
+        let end = offset + length;
+        let line = &mmap_gfa_bytes[offset..end];
+        if let Some(Line::Path(path)) = parser.parse_gfa_line(line).ok() {
+            path_ref.append_handles_iter_chn(
+                sender,
+                path.iter().map(|(node, orient)| {
+                    let node = node + id_offset;
+                    Handle::new(node, orient)
+                }),
+            );
+        }
+    });
+
+    /*
     graph.with_all_paths_mut_ctx_chn(|path_id, path_ref| {
         let &(offset, length) = path_ids.get(&path_id).unwrap();
         let end = offset + length;
@@ -142,6 +158,7 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
             Vec::new()
         }
     });
+    */
 
     eprintln!(
         "after paths    - space usage: {} bytes",
