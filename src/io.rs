@@ -134,13 +134,10 @@ pub fn packed_graph_from_mmap(mmap_gfa: &mut MmapGFA) -> Result<PackedGraph> {
         let end = offset + length;
         let line = &mmap_gfa_bytes[offset..end];
         if let Some(Line::Path(path)) = parser.parse_gfa_line(line).ok() {
-            path.iter()
-                .map(|(node, orient)| {
-                    let node = node + id_offset;
-                    let handle = Handle::new(node, orient);
-                    path_ref.append_step(handle)
-                })
-                .collect()
+            path_ref.append_steps_iter(path.iter().map(|(node, orient)| {
+                let node = node + id_offset;
+                Handle::new(node, orient)
+            }))
         } else {
             Vec::new()
         }
