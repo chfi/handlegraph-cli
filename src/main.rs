@@ -27,7 +27,7 @@ use handlegraph::hashgraph::HashGraph;
 #[allow(unused_imports)]
 use handlegraph::packedgraph::PackedGraph;
 
-use bstr::ByteSlice;
+use bstr::{ByteSlice, ByteVec, B};
 
 use rayon::prelude::*;
 
@@ -46,6 +46,7 @@ fn main() -> Result<()> {
     let mut graph = packed_graph_from_mmap(&mut mmap_gfa)?;
     eprintln!("PackedGraph constructed");
 
+    /*
     // `handles()` comes from the `handlegraph::IntoHandles` trait,
     // and iterates through the graph's handles in an
     // implementation-specific order
@@ -135,6 +136,8 @@ fn main() -> Result<()> {
         })
         .collect::<Vec<_>>();
 
+    */
+
     println!("graph stats");
     let length = graph.total_length();
 
@@ -143,10 +146,30 @@ fn main() -> Result<()> {
     println!("  edges:  {}", graph.edge_count());
     println!("  paths:  {}", graph.path_count());
 
-    println!(
-        "  total path steps: {}",
-        path_lengths.into_iter().sum::<usize>()
+    // println!(
+    //     "  total path steps: {}",
+    //     path_lengths.into_iter().sum::<usize>()
+    // );
+
+    let graph_path_names = graph
+        .path_ids()
+        .filter_map(|path| graph.get_path_name_vec(path))
+        .collect::<Vec<_>>();
+
+    let cons_path_names = graph_path_names;
+
+    let consensus = handlegraph::consensus::create_consensus_graph(
+        &graph,
+        &cons_path_names,
+        10,
     );
+
+    println!("  consensus graph");
+    println!("  nodes:  {}", consensus.node_count());
+    println!("  edges:  {}", consensus.edge_count());
+    println!("  paths:  {}", consensus.path_count());
+
+    // let cons_gfa = handlegraph::conversion::to_gfa(&consensus);
 
     Ok(())
 }
