@@ -138,14 +138,6 @@ fn main() -> Result<()> {
 
     */
 
-    println!("graph stats");
-    let length = graph.total_length();
-
-    println!("  length: {}", length);
-    println!("  nodes:  {}", graph.node_count());
-    println!("  edges:  {}", graph.edge_count());
-    println!("  paths:  {}", graph.path_count());
-
     // println!(
     //     "  total path steps: {}",
     //     path_lengths.into_iter().sum::<usize>()
@@ -156,15 +148,30 @@ fn main() -> Result<()> {
         .filter_map(|path| graph.get_path_name_vec(path))
         .collect::<Vec<_>>();
 
-    let cons_path_names = graph_path_names;
+    // let cons_path_names = &graph_path_names;
+    println!("input graph has {} paths", graph_path_names.len());
+    let cons_path_names = &graph_path_names[0..11];
 
     let consensus = handlegraph::consensus::create_consensus_graph(
         &graph,
-        &cons_path_names,
+        cons_path_names,
         10,
     );
 
-    println!("  consensus graph");
+    println!();
+
+    println!("input graph");
+    let length = graph.total_length();
+
+    println!("  length: {}", length);
+    println!("  nodes:  {}", graph.node_count());
+    println!("  edges:  {}", graph.edge_count());
+    println!("  paths:  {}", graph.path_count());
+
+    println!();
+
+    println!("consensus graph");
+    println!("  length: {}", consensus.total_length());
     println!("  nodes:  {}", consensus.node_count());
     println!("  edges:  {}", consensus.edge_count());
     println!("  paths:  {}", consensus.path_count());
