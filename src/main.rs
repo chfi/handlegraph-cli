@@ -40,6 +40,8 @@ fn main() -> Result<()> {
         exit(1);
     };
 
+    let cons_path_count = args.get(2).and_then(|arg| arg.parse::<usize>().ok());
+
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
     eprintln!("parsing GFA");
@@ -148,9 +150,13 @@ fn main() -> Result<()> {
         .filter_map(|path| graph.get_path_name_vec(path))
         .collect::<Vec<_>>();
 
-    // let cons_path_names = &graph_path_names;
     println!("input graph has {} paths", graph_path_names.len());
-    let cons_path_names = &graph_path_names[0..11];
+    let cons_path_names = if let Some(n) = cons_path_count {
+        let to = graph_path_names.len().min(n);
+        &graph_path_names[0..to]
+    } else {
+        &graph_path_names
+    };
 
     let consensus = handlegraph::consensus::create_consensus_graph(
         &graph,
