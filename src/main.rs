@@ -139,12 +139,6 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
 
     */
-
-    // println!(
-    //     "  total path steps: {}",
-    //     path_lengths.into_iter().sum::<usize>()
-    // );
-
     let graph_path_names = graph
         .path_ids()
         .filter_map(|path| graph.get_path_name_vec(path))
@@ -158,12 +152,6 @@ fn main() -> Result<()> {
         &graph_path_names
     };
 
-    let consensus = handlegraph::consensus::create_consensus_graph(
-        &graph,
-        cons_path_names,
-        10,
-    );
-
     println!();
 
     println!("input graph");
@@ -175,6 +163,52 @@ fn main() -> Result<()> {
     println!("  paths:  {}", graph.path_count());
 
     println!();
+
+    /*
+    let mut paths = graph.path_ids().collect::<Vec<_>>();
+    // paths.sort();
+
+    println!("id\tname\thead\tfirst\ttail\tlast\tsteps");
+    for path_id in paths {
+        let name = graph.get_path_name_vec(path_id).unwrap();
+        let len = graph.path_len(path_id).unwrap();
+
+        let first = graph.path_first_step(path_id).unwrap().pack();
+        let last = graph.path_last_step(path_id).unwrap().pack();
+
+        let path_ref = graph.get_path_ref(path_id).unwrap();
+        let head = path_ref.first_step().pack();
+        let tail = path_ref.last_step().pack();
+
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            path_id.0,
+            name.as_bstr(),
+            head,
+            first,
+            tail,
+            last,
+            len
+        );
+    }
+
+    println!();
+
+    let mut unchopped = graph.clone();
+    handlegraph::algorithms::unchop::unchop(&mut unchopped);
+
+    println!("unchopped graph");
+    println!("  length: {}", unchopped.total_length());
+    println!("  nodes:  {}", unchopped.node_count());
+    println!("  edges:  {}", unchopped.edge_count());
+    println!("  paths:  {}", unchopped.path_count());
+    */
+
+    let consensus = handlegraph::consensus::create_consensus_graph(
+        &graph,
+        cons_path_names,
+        10,
+    );
 
     println!("consensus graph");
     println!("  length: {}", consensus.total_length());
