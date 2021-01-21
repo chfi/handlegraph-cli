@@ -27,8 +27,10 @@ use handlegraph::hashgraph::HashGraph;
 #[allow(unused_imports)]
 use handlegraph::packedgraph::PackedGraph;
 
+#[allow(unused_imports)]
 use bstr::{ByteSlice, ByteVec, B};
 
+#[allow(unused_imports)]
 use rayon::prelude::*;
 
 fn main() -> Result<()> {
@@ -45,7 +47,7 @@ fn main() -> Result<()> {
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
     eprintln!("parsing GFA");
-    let mut graph = packed_graph_from_mmap(&mut mmap_gfa)?;
+    let graph = packed_graph_from_mmap(&mut mmap_gfa)?;
     eprintln!("PackedGraph constructed");
 
     /*
@@ -144,7 +146,7 @@ fn main() -> Result<()> {
         .filter_map(|path| graph.get_path_name_vec(path))
         .collect::<Vec<_>>();
 
-    println!("input graph has {} paths", graph_path_names.len());
+    eprintln!("input graph has {} paths", graph_path_names.len());
     let cons_path_names = if let Some(n) = cons_path_count {
         let to = graph_path_names.len().min(n);
         &graph_path_names[0..to]
@@ -152,17 +154,18 @@ fn main() -> Result<()> {
         &graph_path_names
     };
 
-    println!();
+    // eprintln!();
+    /*
 
-    println!("input graph");
-    let length = graph.total_length();
+    eprintln!("Id - Steps - Name");
+    for path_id in graph.path_ids() {
+        let name = graph.get_path_name_vec(path_id).unwrap();
+        let len = graph.path_len(path_id).unwrap();
+        eprintln!("{:2} - {:5} - {}", path_id.0, len, name.as_bstr());
+    }
 
-    println!("  length: {}", length);
-    println!("  nodes:  {}", graph.node_count());
-    println!("  edges:  {}", graph.edge_count());
-    println!("  paths:  {}", graph.path_count());
-
-    println!();
+    eprintln!();
+    */
 
     /*
     let mut paths = graph.path_ids().collect::<Vec<_>>();
@@ -210,13 +213,25 @@ fn main() -> Result<()> {
         10,
     );
 
-    println!("consensus graph");
-    println!("  length: {}", consensus.total_length());
-    println!("  nodes:  {}", consensus.node_count());
-    println!("  edges:  {}", consensus.edge_count());
-    println!("  paths:  {}", consensus.path_count());
+    let mut stdout = std::io::stdout();
 
-    // let cons_gfa = handlegraph::conversion::to_gfa(&consensus);
+    handlegraph::conversion::write_as_gfa(&consensus, &mut stdout)?;
+
+    eprintln!();
+
+    eprintln!("input graph");
+    eprintln!("  length: {}", graph.total_length());
+    eprintln!("  nodes:  {}", graph.node_count());
+    eprintln!("  edges:  {}", graph.edge_count());
+    eprintln!("  paths:  {}", graph.path_count());
+
+    eprintln!();
+
+    eprintln!("consensus graph");
+    eprintln!("  length: {}", consensus.total_length());
+    eprintln!("  nodes:  {}", consensus.node_count());
+    eprintln!("  edges:  {}", consensus.edge_count());
+    eprintln!("  paths:  {}", consensus.path_count());
 
     Ok(())
 }
