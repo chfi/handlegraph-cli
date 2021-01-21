@@ -344,7 +344,9 @@ dependencies = [
 
 [[package]]
 name = "handlegraph"
-version = "0.6.0"
+version = "0.7.0-alpha"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "990527f828ff9bbe2cae7c6aa3360ef0ec7b3edd4819a1d17095b3d820d72c75"
 dependencies = [
  "anyhow",
  "boomphf",

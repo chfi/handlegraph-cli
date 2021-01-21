@@ -8,7 +8,8 @@ edition = "2018"
 
 [dependencies]
 # handlegraph = "0.6"
-handlegraph = { path = "../rs-handlegraph" }
+# handlegraph = { path = "../rs-handlegraph" }
+handlegraph = "0.7.0-alpha"
 gfa = "0.9"
 
 memmap = "0.7"
