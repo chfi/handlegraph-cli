@@ -33,7 +33,15 @@ use bstr::{ByteSlice, ByteVec, B};
 #[allow(unused_imports)]
 use rayon::prelude::*;
 
+#[allow(unused_imports)]
+use log::{debug, error, info, trace};
+
 fn main() -> Result<()> {
+    let mut builder = pretty_env_logger::formatted_builder();
+    // builder.filter_level(log::LevelFilter::Info);
+    builder.filter_level(log::LevelFilter::Debug);
+    builder.init();
+
     let args = env::args().collect::<Vec<_>>();
     let file_name = if let Some(name) = args.get(1) {
         name
@@ -141,6 +149,15 @@ fn main() -> Result<()> {
         .collect::<Vec<_>>();
 
     */
+
+    eprintln!("input graph");
+    eprintln!("  length: {}", graph.total_length());
+    eprintln!("  nodes:  {}", graph.node_count());
+    eprintln!("  edges:  {}", graph.edge_count());
+    eprintln!("  paths:  {}", graph.path_count());
+
+    eprintln!();
+
     let graph_path_names = graph
         .path_ids()
         .filter_map(|path| graph.get_path_name_vec(path))
@@ -154,7 +171,6 @@ fn main() -> Result<()> {
         &graph_path_names
     };
 
-    // eprintln!();
     /*
 
     eprintln!("Id - Steps - Name");
@@ -196,15 +212,6 @@ fn main() -> Result<()> {
     }
 
     println!();
-
-    let mut unchopped = graph.clone();
-    handlegraph::algorithms::unchop::unchop(&mut unchopped);
-
-    println!("unchopped graph");
-    println!("  length: {}", unchopped.total_length());
-    println!("  nodes:  {}", unchopped.node_count());
-    println!("  edges:  {}", unchopped.edge_count());
-    println!("  paths:  {}", unchopped.path_count());
     */
 
     let consensus = handlegraph::consensus::create_consensus_graph(
@@ -216,14 +223,6 @@ fn main() -> Result<()> {
     let mut stdout = std::io::stdout();
 
     handlegraph::conversion::write_as_gfa(&consensus, &mut stdout)?;
-
-    eprintln!();
-
-    eprintln!("input graph");
-    eprintln!("  length: {}", graph.total_length());
-    eprintln!("  nodes:  {}", graph.node_count());
-    eprintln!("  edges:  {}", graph.edge_count());
-    eprintln!("  paths:  {}", graph.path_count());
 
     eprintln!();
 
