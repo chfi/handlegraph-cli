@@ -166,9 +166,19 @@ fn main() -> Result<()> {
     eprintln!("input graph has {} paths", graph_path_names.len());
     let cons_path_names = if let Some(n) = cons_path_count {
         let to = graph_path_names.len().min(n);
-        &graph_path_names[0..to]
+        if to == 1 {
+            &graph_path_names[0..to]
+        } else if to == graph_path_names.len() && to > 1 {
+            &graph_path_names[0..to - 1]
+        } else {
+            &graph_path_names[0..to]
+        }
     } else {
-        &graph_path_names
+        match graph_path_names.len() {
+            0 => panic!("input graph must have at least one path"),
+            1 => &graph_path_names[..],
+            n => &graph_path_names[0..n - 1],
+        }
     };
 
     /*
