@@ -50,7 +50,7 @@ fn main() -> Result<()> {
         exit(1);
     };
 
-    let cons_path_count = args.get(2).and_then(|arg| arg.parse::<usize>().ok());
+    let cons_jump_max = args.get(2).and_then(|arg| arg.parse::<usize>().ok());
 
     let mut mmap_gfa = MmapGFA::new(file_name)?;
 
@@ -158,76 +158,42 @@ fn main() -> Result<()> {
 
     eprintln!();
 
-    let graph_path_names = graph
-        .path_ids()
-        .filter_map(|path| graph.get_path_name_vec(path))
-        .collect::<Vec<_>>();
+    eprintln!("getting path names");
 
-    eprintln!("input graph has {} paths", graph_path_names.len());
-    let cons_path_names = if let Some(n) = cons_path_count {
-        let to = graph_path_names.len().min(n);
-        if to == 1 {
-            &graph_path_names[0..to]
-        } else if to == graph_path_names.len() && to > 1 {
-            &graph_path_names[0..to - 1]
-        } else {
-            &graph_path_names[0..to]
-        }
-    } else {
-        match graph_path_names.len() {
-            0 => panic!("input graph must have at least one path"),
-            1 => &graph_path_names[..],
-            n => &graph_path_names[0..n - 1],
-        }
-    };
+    let mut cons_path_names = Vec::with_capacity(graph.path_count());
 
-    /*
+    let mut timings: Vec<f64> = Vec::with_capacity(graph.path_count());
 
-    eprintln!("Id - Steps - Name");
+    let mut buf: Vec<u8> = Vec::with_capacity(256);
     for path_id in graph.path_ids() {
-        let name = graph.get_path_name_vec(path_id).unwrap();
-        let len = graph.path_len(path_id).unwrap();
-        eprintln!("{:2} - {:5} - {}", path_id.0, len, name.as_bstr());
+        buf.clear();
+
+        let inst = std::time::Instant::now();
+        let name_iter = graph.get_path_name(path_id);
+
+        if let Some(name_iter) = name_iter {
+            buf.extend(name_iter);
+            if buf.starts_with(b"Consensus") {
+                let mut new_buf = Vec::with_capacity(buf.capacity());
+                std::mem::swap(&mut buf, &mut new_buf);
+                new_buf.shrink_to_fit();
+                cons_path_names.push(new_buf);
+            }
+        }
+        timings.push(inst.elapsed().as_secs_f64());
     }
 
-    eprintln!();
-    */
+    let tsum: f64 = timings.iter().copied().sum();
+    let tlen: f64 = timings.len() as f64;
+    eprintln!("add cons path name total: {}", tsum / tlen);
 
-    /*
-    let mut paths = graph.path_ids().collect::<Vec<_>>();
-    // paths.sort();
+    let cons_jump_max = cons_jump_max.unwrap_or_else(|| 10);
 
-    println!("id\tname\thead\tfirst\ttail\tlast\tsteps");
-    for path_id in paths {
-        let name = graph.get_path_name_vec(path_id).unwrap();
-        let len = graph.path_len(path_id).unwrap();
-
-        let first = graph.path_first_step(path_id).unwrap().pack();
-        let last = graph.path_last_step(path_id).unwrap().pack();
-
-        let path_ref = graph.get_path_ref(path_id).unwrap();
-        let head = path_ref.first_step().pack();
-        let tail = path_ref.last_step().pack();
-
-        println!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
-            path_id.0,
-            name.as_bstr(),
-            head,
-            first,
-            tail,
-            last,
-            len
-        );
-    }
-
-    println!();
-    */
-
+    eprintln!("starting consensus");
     let consensus = handlegraph::consensus::create_consensus_graph(
         &graph,
-        cons_path_names,
-        10,
+        &cons_path_names,
+        cons_jump_max,
     );
 
     let mut stdout = std::io::stdout();

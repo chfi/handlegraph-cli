@@ -330,23 +330,21 @@ dependencies = [
 
 [[package]]
 name = "gfa"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e0906d45192d4a1f0f0bf1b3da50807966c06bb3590ca7006aa56499ee66e3b"
+version = "0.10.0-alpha.0"
 dependencies = [
+ "anyhow",
  "bstr",
  "bytemuck",
  "fnv",
  "lazy_static",
+ "memmap",
  "nom",
  "regex",
 ]
 
 [[package]]
 name = "handlegraph"
-version = "0.7.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c295f710b0f5e35f0533568bc62f3ea599814f49c2fcf4c41364005eefbcad0"
+version = "0.7.0-alpha.2"
 dependencies = [
  "anyhow",
  "boomphf",
@@ -367,6 +365,7 @@ dependencies = [
  "bstr",
  "crossterm",
  "env_logger",
+ "fnv",
  "futures",
  "futures-util",
  "fxhash",
