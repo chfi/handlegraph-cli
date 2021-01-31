@@ -38,8 +38,8 @@ use log::{debug, error, info, trace};
 
 fn main() -> Result<()> {
     let mut builder = pretty_env_logger::formatted_builder();
-    // builder.filter_level(log::LevelFilter::Info);
-    builder.filter_level(log::LevelFilter::Debug);
+    builder.filter_level(log::LevelFilter::Info);
+    // builder.filter_level(log::LevelFilter::Debug);
     builder.init();
 
     let args = env::args().collect::<Vec<_>>();
@@ -188,12 +188,14 @@ fn main() -> Result<()> {
     eprintln!("add cons path name total: {}", tsum / tlen);
 
     let cons_jump_max = cons_jump_max.unwrap_or_else(|| 10);
+    let cons_jump_limit = cons_jump_max * 10;
 
     eprintln!("starting consensus");
     let consensus = handlegraph::consensus::create_consensus_graph(
         &graph,
         &cons_path_names,
         cons_jump_max,
+        cons_jump_limit,
     );
 
     let mut stdout = std::io::stdout();
