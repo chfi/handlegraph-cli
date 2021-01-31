@@ -38,8 +38,8 @@ use log::{debug, error, info, trace};
 
 fn main() -> Result<()> {
     let mut builder = pretty_env_logger::formatted_builder();
-    builder.filter_level(log::LevelFilter::Info);
-    // builder.filter_level(log::LevelFilter::Debug);
+    // builder.filter_level(log::LevelFilter::Info);
+    builder.filter_level(log::LevelFilter::Debug);
     builder.init();
 
     let args = env::args().collect::<Vec<_>>();
@@ -162,16 +162,10 @@ fn main() -> Result<()> {
 
     let mut cons_path_names = Vec::with_capacity(graph.path_count());
 
-    let mut timings: Vec<f64> = Vec::with_capacity(graph.path_count());
-
     let mut buf: Vec<u8> = Vec::with_capacity(256);
     for path_id in graph.path_ids() {
         buf.clear();
-
-        let inst = std::time::Instant::now();
-        let name_iter = graph.get_path_name(path_id);
-
-        if let Some(name_iter) = name_iter {
+        if let Some(name_iter) = graph.get_path_name(path_id) {
             buf.extend(name_iter);
             if buf.starts_with(b"Consensus") {
                 let mut new_buf = Vec::with_capacity(buf.capacity());
@@ -180,12 +174,7 @@ fn main() -> Result<()> {
                 cons_path_names.push(new_buf);
             }
         }
-        timings.push(inst.elapsed().as_secs_f64());
     }
-
-    let tsum: f64 = timings.iter().copied().sum();
-    let tlen: f64 = timings.len() as f64;
-    eprintln!("add cons path name total: {}", tsum / tlen);
 
     let cons_jump_max = cons_jump_max.unwrap_or_else(|| 10);
     let cons_jump_limit = cons_jump_max * 10;
