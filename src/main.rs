@@ -177,7 +177,7 @@ fn main() -> Result<()> {
     }
 
     let cons_jump_max = cons_jump_max.unwrap_or_else(|| 10);
-    let cons_jump_limit = cons_jump_max * 10;
+    let cons_jump_limit = 1_000_000;
 
     eprintln!("starting consensus");
     let consensus = handlegraph::consensus::create_consensus_graph(
